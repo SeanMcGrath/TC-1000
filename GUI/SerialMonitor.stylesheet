@@ -1,0 +1,42 @@
+MainWindow { 
+	background-color: #3C3C3C
+}
+
+SerialMonitor {
+    background-color: #3C3C3C
+}
+
+QLabel { 
+    color: white;
+    background-color: #1E1E1E;
+    border-radius: 5px;
+    padding: 8px;
+    qproperty-alignment: AlignCenter;
+}
+
+QRadioButton {
+	color: white;
+	background-color: #1E1E1E;
+    border-radius: 5px;
+    padding: 8px;
+}
+
+QSpinBox {
+	background-color: white;
+}
+
+QStatusBar {
+	color: white;
+}
+
+ QMenuBar {
+     background-color: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                                       stop:0 lightgray, stop:1 darkgray);
+ }
+
+  QMenuBar::item {
+     spacing: 3px; /* spacing between menu bar items */
+     padding: 1px 4px;
+     background: transparent;
+     border-radius: 4px;
+ }
