@@ -1,13 +1,13 @@
 """
-TO DO: Celsius/Fahrenheit communication
-"""
+================
+TC-1000 GUI
+================
 
-"""
-This recipe depends on PyQt and pySerial. Qt 4 is world class code 
-and I like how it looks. PyQt is not completely open source, 
-but I think PySide is. Tested on Qt4.6 / Win 7 / Duemilanove
+Read out and control the Antares Micro TC-1000 PID controller.
 
-Author: Dirk Swart, Ithaca, NY. 2011-05-20. www.wickeddevice.com
+Built for PyQt5 on Python 3.4.
+
+Author: Sean McGrath, Amherst, MA, 2014. srmcgrat@umass.edu
 
 Based on threads recipe by Jacob Hallen, AB Strakt, Sweden. 2001-10-17
 As adapted by Boudewijn Rempt, Netherlands. 2002-04-15
@@ -23,8 +23,11 @@ from PyQt5 import QtGui, QtCore, QtWidgets
 from datetime import datetime
 import serial
 
+
+
 def serial_ports():
-    """Lists serial ports
+    """
+    Lists serial ports
 
     :raises EnvironmentError:
         On unsupported or unknown platforms
@@ -55,20 +58,51 @@ def serial_ports():
     return result
 
 def toFahrenheit(celsius):
+    """
+    Converts input to Fahrenheit scale.
+
+    celsius
+        Input temperature in Celsius
+    """
     return (float(celsius)*9.0/5.0)+32.0
 
 def toCelsius(fahrenheit):
+    """
+    Converts input to Celsius.
+
+    fahrenheit
+        input temperature in Fahrenheit
+    """
     return (float(fahrenheit)-32.0)*(5.0/9.0)
 
 class MainWindow(QtWidgets.QMainWindow):
+    """
+    Main GUI Window, which contains and displays subwidgets.
+    """
 
-    def __init__(self, monitor, endcommand, stylesheet, *args):
+    def __init__(self, widgets, endcommand, stylesheet, *args):
+        """
+        Constructor.
 
+        widgets
+            list of subwidgets to be hosted in this window
+
+        endcommand
+            a function to be called when this window receives a CloseEvent
+
+        stylesheet
+            a .stylesheet file opened in read mode contiang style information
+
+        """
+
+        # Superconstructor
         QtWidgets.QMainWindow.__init__(self, *args)
 
-        self.monitor = monitor
-        self.setCentralWidget(monitor)
+        # Initialize SerialMonitor
+        self.monitor = widgets[0]
+        self.setCentralWidget(widgets[0])
 
+        # 
         self.initUI()
 
         self.endcommand = endcommand
@@ -76,26 +110,60 @@ class MainWindow(QtWidgets.QMainWindow):
         self.setStyleSheet(stylesheet.read())
 
     def initUI(self):
+        """
+        Assemble and initialize window UI.
+        """
+
+        # File->Exit
         exitAction = QtWidgets.QAction(QtGui.QIcon('exit.png'), '&Exit', self)        
         exitAction.setShortcut('Ctrl+Q')
         exitAction.setStatusTip('Exit application')
         exitAction.triggered.connect(self.closeEvent)
 
+        # Put title on window
         self.setWindowTitle('TC-1000 Readout')
-        self.statusBar().showMessage("Ready")
 
+        # Initialize status bar at bottom of window
+        self.statusBar().showMessage("Initializing")
+
+        # Initialize "File" Section of top menu
         menubar = self.menuBar()
-
         fileMenu = menubar.addMenu('&File')
         fileMenu.addAction(exitAction)
 
     def closeEvent(self, ev):
+        """
+        Executed when window is closed or File->Exit is called.
+
+        ev
+            The CloseEvent in question. This is accepted by default.
+        """
+
         self.endcommand()
 
 
 class SerialMonitor(QtWidgets.QWidget):
+    """
+    Widget to collect and display temperature information from TC-1000.
+    Also allows graphical control of on-board variables.
+
+    This widget DOES NOT handle actual I/O - this is handled by ThreadedClient, which acquires
+    data and passes it to the graphical monitor via a LifoQueue.
+    """
 
     def __init__(self, queue, endcommand, ports, *args):
+        """
+        Constructor.
+
+        queue
+            the input LifoQueue passed from the client application.
+
+        endcommand
+            the body of a funtion to be called at widget termination.
+
+        ports
+            A list of available serial ports
+        """
 
         # Celsius default
         self.fahrenheit = 0
@@ -118,10 +186,7 @@ class SerialMonitor(QtWidgets.QWidget):
         for port in ports:
             self.portSelector.addItem(port)
         self.portLabel = QtWidgets.QLabel(self)
-        if(ports):
-            self.portLabel.setText("Serial Port")
-        else:
-            self.portLabel.setText("NO PORTS")
+        self.portLabel.setText("Serial Port")
         self.fSelect = QtWidgets.QRadioButton("Fahrenheit",self)
         self.cSelect = QtWidgets.QRadioButton("Celsius",self)
         self.cSelect.setChecked(True)
@@ -150,11 +215,17 @@ class SerialMonitor(QtWidgets.QWidget):
         self.endcommand = endcommand    
         
     def closeEvent(self, ev):
+        """
+        Executed when window is closed or File->Exit is called.
+
+        ev
+            The CloseEvent in question. This is accepted by default.
+        """
         self.endcommand()
 
     def processIncoming(self):
         """
-        Handle all the messages currently in the queue (if any).
+        Handle all the messages currently in the input queue (if any).
         """
         while self.queue.qsize():
             try:
@@ -188,22 +259,23 @@ class SerialMonitor(QtWidgets.QWidget):
                 else:
                     self.currTemp.display(self.current)
 
+                # add the temperature to array for analysis
                 self.tempArray.append({datetime.now(),self.current})
                 
             except queue.Empty:
                 print("queue empty")
                 pass
 
-
-        # print("handled all messages in queue")
             
 
 class ThreadedClient:
     """
-    Launch the main part of the GUI and the worker thread. periodicCall and
-    endApplication could reside in the GUI part, but putting them here
-    means that you have all the thread controls in a single place.
+    Launches the GUI and handles I/O.
+
+    GUI components reside within the body of the class itself, while actual serial communication
+    is in a separate thread.
     """
+    BAUD_RATE = 9600
     running = 0
     serialPort = 0
     ssFile = "SerialMonitor.stylesheet"
@@ -212,6 +284,10 @@ class ThreadedClient:
         serialPort = ports[0]
 
     def __init__(self):
+        """
+        Constructor.
+        """
+
         # Create the queues
         self.outVal = 0
         self.inQueue = queue.LifoQueue()
@@ -222,16 +298,18 @@ class ThreadedClient:
 
         # Start Serial Connection
         if self.serialPort:
-            self.initSerial(self.serialPort,9600)
+            self.initSerial(self.serialPort,self.BAUD_RATE)
 
         # Set up the GUI part
         self.monitor=SerialMonitor(self.inQueue, self.endWidget,self.ports)
-        self.gui = MainWindow(self.monitor,self.endApplication,self.ss)
+        self.widgets = [self.monitor]
+        self.gui = MainWindow(self.widgets,self.endApplication,self.ss)
         self.gui.show()
 
-        # A timer to periodically call periodicCall :-)
+        # A timer to periodically call periodicCall
         self.timer = QtCore.QTimer()
         self.timer.timeout.connect(self.periodicCall)
+
         # Start the timer -- this replaces the initial call to periodicCall
         self.timer.start(50)
 
@@ -245,24 +323,34 @@ class ThreadedClient:
         self.monitor.fSelect.toggled.connect(self.scaleChange)
 
         # Set up the thread to do asynchronous I/O
-        # More can be made if necessary
         self.running = 1
         self.thread1 = threading.Thread(target=self.workerThread1)
         self.thread1.start()
 
     def periodicCall(self):
         """
-        Check every 10 ms if there is something new in the queue.
+        Check every 50 ms if there is something new in the queue.
+        Also checks whether the program has closed.
         """
         self.monitor.processIncoming()
         if not self.running:
             root.quit()
             print("Quit")
 
-    def initSerial(self,port,baud):
+    def initSerial(self,port,baud = BAUD_RATE):
         """
-        Initialize serial connection
+        Initialize serial connection.
+
+        port
+            string holding name of desired port (eg. COM4)
+
+        baud
+            integer baud rate. Defaults to BAUD_RATE bps.
+
+        :Returns:
+            True if connection was successful, False otherwise.
         """
+
         try:
             self.ser = serial.Serial(port, baud)
             return True
@@ -273,7 +361,11 @@ class ThreadedClient:
 
     def writeData(self, data):
         """
-        write value from spinbox to output queue
+        Implement spinbox control of temperature variables.
+        Write target temperature value from spinbox to output queue.
+
+        data
+            new value of spinbox.
         """
         if not self.monitor.fahrenheit:
             if(data > self.monitor.target):
@@ -290,7 +382,11 @@ class ThreadedClient:
 
     def scaleChange(self, scale):
         """
-        implement radio button control of temp scale
+        Implement radio button control of temperature scale.
+        Write scale type to output queue.
+
+        scale
+            Boolean value: True for Fahrenheit, False for Celsius
         """
         self.monitor.fahrenheit = scale
         self.monitor.target = math.floor(self.monitor.target)
@@ -307,7 +403,7 @@ class ThreadedClient:
 
     def endWidget(self):
         """
-        Gracefully close main widget
+        Gracefully close SerialMonitor (hopefully)
         """
         print("Closing widget...")
         self.running = 0
@@ -324,42 +420,47 @@ class ThreadedClient:
 
 
     def changePort(self, portIndex):
+        """
+        Take input from combobox to change serial port.
+
+        portIndex
+            index into ports list corresponding to desired port
+        """
         try:
             self.ser.close()
-            self.initSerial(self.ports[portIndex],9600)
+            self.initSerial(self.ports[portIndex],BAUD_RATE)
             self.ser.open()
         except:
-            self.monitor.portLabel.setText("Error on " + self.ports[portIndex])
+            self.gui.statusBar().showMessage("Error on " + self.ports[portIndex])
             pass
 
     def workerThread1(self):
         """
-        This is where we handle the asynchronous I/O. 
-        """
-        print("thread started!")
-        while self.running:
-            oldOut = 0;
+        Handles asynchronous I/O.
 
+        Pulls raw port input in line by line and places it in a queue which is passed to the SerialMonitor widget.
+        Output from SerialMonitor subwidget is placed in the output queue by various methods above,
+        and each time through the loop, the most recent output is encoded and sent to the control module.
+        """
+        while self.running:
             # If no port is available, continuously check for one
             while (not self.ports) and self.running:
-                print("looking for ports")
+                self.gui.statusBar().showMessage("No Serial Ports Detected")
                 self.monitor.portSelector.clear()
                 self.ports = serial_ports()
                 # if found
                 if(self.ports):
+                    self.gui.statusBar().showMessage("Connecting to " + self.ports[0] + "...")
                     self.monitor.portSelector.addItem(self.ports[0])
-                    self.monitor.portLabel.setText("Connecting...")
-                    self.initSerial(self.ports[0],9600)
+                    self.initSerial(self.ports[0],self.BAUD_RATE)
                     time.sleep(.5)
-
-            print("there is a port")
 
             while self.ports and self.running:
                 #Poll serial for input and enqueue it
                 try:
                     msgIn = self.ser.readline();
                     if (msgIn):
-                        self.monitor.portLabel.setText("Serial Port")
+                        self.gui.statusBar().showMessage("Serial connection active")
                         self.inQueue.put(msgIn)
                     else:
                         pass
@@ -371,7 +472,7 @@ class ThreadedClient:
                         self.monitor.currTemp.display("")
                         self.ports = []
 
-                # push output from queue to serial
+                # push next available output from queue to serial
                 if self.outQueue.qsize():
                     self.outVal = self.outQueue.get()
                     self.ser.write(str(self.outVal).encode("utf-8"))
