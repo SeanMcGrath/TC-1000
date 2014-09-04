@@ -2,7 +2,7 @@
 TC-1000 Software To-Do List
 ==============================
 
-- Add plotting funcitonality to GUI
+- Add plotting functionality to GUI
 - Add analysis functionality to GUI
 - Test/implement Linux port
 - Think of and add more functionality to embedded code (auto-tune?)

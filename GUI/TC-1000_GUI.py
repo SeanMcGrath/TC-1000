@@ -18,9 +18,11 @@ Code is in the public domain.
 """
 __author__ = 'Dirk Swart, Doudewijn Rempt, Jacob Hallen'
 
-import sys, time, math, threading, random, queue, glob, matplotlib as mpl, numpy as np
+import sys, time, math, threading, random, queue, glob, numpy as np
 from PyQt5 import QtGui, QtCore, QtWidgets
 from datetime import datetime
+from matplotlib.figure import Figure
+from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 import serial
 
 
@@ -100,7 +102,14 @@ class MainWindow(QtWidgets.QMainWindow):
 
         # Initialize SerialMonitor
         self.monitor = widgets[0]
-        self.setCentralWidget(widgets[0])
+        self.plot = widgets[1]
+
+        self.central = QtWidgets.QWidget(self)
+        self.layout = QtWidgets.QVBoxLayout(self)
+        self.layout.addWidget(self.plot)
+        self.layout.addWidget(self.monitor)
+        self.central.setLayout(self.layout)
+        self.setCentralWidget(self.central)
 
         # 
         self.initUI()
@@ -179,7 +188,7 @@ class SerialMonitor(QtWidgets.QWidget):
         self.queue = queue
 
         # Create array for temperature storage
-        self.tempArray = []
+        self.tempArray = np.array([])
 
         # declare subwidgets
         self.portSelector = QtWidgets.QComboBox(self)
@@ -260,13 +269,32 @@ class SerialMonitor(QtWidgets.QWidget):
                     self.currTemp.display(self.current)
 
                 # add the temperature to array for analysis
-                self.tempArray.append({datetime.now(),self.current})
+                self.tempArray = np.append(self.tempArray,[datetime.now(),self.current])
                 
             except queue.Empty:
                 print("queue empty")
                 pass
 
-            
+    def getTempArray(self):
+        return self.tempArray
+
+class MplCanvasWidget(FigureCanvas):
+    """
+    Class to hold matplotlib Figures for display.
+    """
+
+    def __init__(self):
+        self.fig = Figure()
+        self.axes = self.fig.add_subplot(111)
+        self.x = np.arange(0.0, 3.0, 0.01)
+        self.y = np.cos(2*np.pi*self.x)
+        self.axes.plot(self.x, self.y)
+        FigureCanvas.__init__(self,self.fig) 
+        self.show()
+
+    def showPlot(self, x, y):
+        self.axes.plot(x,y)
+        self.show()
 
 class ThreadedClient:
     """
@@ -303,6 +331,11 @@ class ThreadedClient:
         # Set up the GUI part
         self.monitor=SerialMonitor(self.inQueue, self.endWidget,self.ports)
         self.widgets = [self.monitor]
+
+        #initialize graphing utility
+        self.plot = MplCanvasWidget()
+        self.widgets.append(self.plot)
+
         self.gui = MainWindow(self.widgets,self.endApplication,self.ss)
         self.gui.show()
 
@@ -327,12 +360,18 @@ class ThreadedClient:
         self.thread1 = threading.Thread(target=self.workerThread1)
         self.thread1.start()
 
+
+
     def periodicCall(self):
         """
         Check every 50 ms if there is something new in the queue.
         Also checks whether the program has closed.
         """
         self.monitor.processIncoming()
+        tArray = self.monitor.getTempArray()
+        if(tArray.any()):
+            print(tArray)
+            # self.plot.showPlot(tArray[:,0],tArray[:,1])
         if not self.running:
             root.quit()
             print("Quit")
