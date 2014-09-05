@@ -18,7 +18,7 @@ Code is in the public domain.
 """
 __author__ = 'Dirk Swart, Doudewijn Rempt, Jacob Hallen'
 
-import sys, time, math, threading, random, queue, glob, numpy as np
+import sys, time, datetime, math, threading, random, queue, glob, numpy as np
 from PyQt5 import QtGui, QtCore, QtWidgets
 from datetime import datetime
 from matplotlib.figure import Figure
@@ -178,7 +178,6 @@ class SerialMonitor(QtWidgets.QWidget):
         self.fahrenheit = 0
 
         # internal temperature trackers in celsius
-        self.current = 27
         self.target = 30
 
         #superclass constructor
@@ -187,8 +186,12 @@ class SerialMonitor(QtWidgets.QWidget):
         #take queue from constructor
         self.queue = queue
 
-        # Create array for temperature storage
-        self.tempArray = np.array([])
+        # Record time of program start
+        self.initTime = time.time()
+
+        # initialization flags
+        self.tempArrayInitialized = False
+        self.currentInitialized = False
 
         # declare subwidgets
         self.portSelector = QtWidgets.QComboBox(self)
@@ -243,15 +246,18 @@ class SerialMonitor(QtWidgets.QWidget):
                 #decode bytes to string and parse packet
                 if len(msg) == 1:
                     self.current = float(msg[0])
+                    self.currentInitialized = True
                 elif len(msg) == 2:
                     self.current =float(msg[0])
                     self.fahrenheit = int(msg[1])
+                    self.currentInitialized = True
                     if (int(self.fahrenheit)):
                         self.fSelect.setChecked(True)
                         self.targetTemp.setSuffix(" F")
                         self.targetTemp.setValue(int(toFahrenheit(float(self.target))))
                 elif len(msg) == 3:
                     self.current = float(msg[0])
+                    self.currentInitialized = True
                     self.fahrenheit = int(msg[1])
                     self.target = float(msg[2])
                     if (int(self.fahrenheit)):
@@ -269,10 +275,14 @@ class SerialMonitor(QtWidgets.QWidget):
                     self.currTemp.display(self.current)
 
                 # add the temperature to array for analysis
-                self.tempArray = np.append(self.tempArray,[datetime.now(),self.current])
+                if (self.tempArrayInitialized):
+                    arrayAdd = np.array([[time.time()-self.initTime, self.current,self.target]])
+                    self.tempArray = np.concatenate((self.tempArray,arrayAdd))
+                elif(self.currentInitialized):
+                    self.tempArray = np.array([[time.time()-self.initTime, self.current, self.target]])
+                    self.tempArrayInitialized = True
                 
             except queue.Empty:
-                print("queue empty")
                 pass
 
     def getTempArray(self):
@@ -285,16 +295,20 @@ class MplCanvasWidget(FigureCanvas):
 
     def __init__(self):
         self.fig = Figure()
-        self.axes = self.fig.add_subplot(111)
-        self.x = np.arange(0.0, 3.0, 0.01)
-        self.y = np.cos(2*np.pi*self.x)
-        self.axes.plot(self.x, self.y)
+        self.fig.suptitle("Temperature Control")
+        self.axes = self.fig.add_subplot(111,ylabel = "Temperature", xlabel = "Time")
         FigureCanvas.__init__(self,self.fig) 
         self.show()
 
-    def showPlot(self, x, y):
-        self.axes.plot(x,y)
-        self.show()
+    def showPlot(self, x, yArray):
+        self.axes.clear()
+        self.axes.set_ylabel("Temperature")
+        self.axes.set_xlabel("Time (seconds)")
+        self.axes.plot(x,yArray[0],'b',label = "Current") # plot first argument as blue solid line
+        self.axes.plot(x,yArray[1],'r--', label = "Target") # plot second argument as red dashed line
+        self.axes.legend()
+        self.fig.canvas.draw()
+
 
 class ThreadedClient:
     """
@@ -368,13 +382,13 @@ class ThreadedClient:
         Also checks whether the program has closed.
         """
         self.monitor.processIncoming()
-        tArray = self.monitor.getTempArray()
-        if(tArray.any()):
-            print(tArray)
-            # self.plot.showPlot(tArray[:,0],tArray[:,1])
-        if not self.running:
-            root.quit()
-            print("Quit")
+        if(self.monitor.tempArrayInitialized): #Check initialization of temperature acquisition
+            tArray = self.monitor.getTempArray()
+            if(tArray.any()):
+                self.plot.showPlot(tArray[:,0],[tArray[:,1],tArray[:,2]])
+            if not self.running:
+                root.quit()
+                print("Quit")
 
     def initSerial(self,port,baud = BAUD_RATE):
         """
