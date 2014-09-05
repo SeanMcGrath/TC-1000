@@ -23,6 +23,12 @@ QRadioButton {
 
 QSpinBox {
 	background-color: white;
+    width: 10em;
+    max-width: 10em;
+}
+
+QComboBox {
+    max-width: 10em;
 }
 
 QStatusBar {
@@ -30,9 +36,8 @@ QStatusBar {
 }
 
  QMenuBar {
-     background-color: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-                                       stop:0 lightgray, stop:1 darkgray);
- }
+        background-color: #1E1E1E;
+}
 
   QMenuBar::item {
      spacing: 3px; /* spacing between menu bar items */
