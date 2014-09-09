@@ -129,6 +129,12 @@ class MainWindow(QtWidgets.QMainWindow):
         exitAction.setStatusTip('Exit application')
         exitAction.triggered.connect(self.closeEvent)
 
+        # Graph->Reset
+        resetAction = QtWidgets.QAction('&Reset plot', self)
+        resetAction.setShortcut('Ctrl+R')
+        resetAction.setStatusTip('Reset plot and clear temperature data')
+        resetAction.triggered.connect(self.plotResetEvent)
+
         # Put title on window
         self.setWindowTitle('TC-1000 Readout')
 
@@ -139,6 +145,8 @@ class MainWindow(QtWidgets.QMainWindow):
         menubar = self.menuBar()
         fileMenu = menubar.addMenu('&File')
         fileMenu.addAction(exitAction)
+        plotMenu = menubar.addMenu('&Plot')
+        plotMenu.addAction(resetAction)
 
     def closeEvent(self, ev):
         """
@@ -149,6 +157,9 @@ class MainWindow(QtWidgets.QMainWindow):
         """
 
         self.endcommand()
+
+    def plotResetEvent(self, ev):
+        self.monitor.initializeTempArray()
 
 
 class SerialMonitor(QtWidgets.QWidget):
@@ -280,7 +291,7 @@ class SerialMonitor(QtWidgets.QWidget):
                     arrayAdd = np.array([[time.time()-self.initTime, self.current,self.target]])
                     self.tempArray = np.concatenate((self.tempArray,arrayAdd))
                 elif(self.currentInitialized):
-                    self.tempArray = np.array([[time.time()-self.initTime, self.current, self.target]])
+                    self.initializeTempArray()
                     self.tempArrayInitialized = True
                 
             except queue.Empty:
@@ -288,6 +299,9 @@ class SerialMonitor(QtWidgets.QWidget):
 
     def getTempArray(self):
         return self.tempArray
+
+    def initializeTempArray(self):
+        self.tempArray = np.array([[time.time()-self.initTime, self.current, self.target]])
 
 class MplCanvasWidget(FigureCanvas):
     """
