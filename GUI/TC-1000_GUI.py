@@ -319,6 +319,15 @@ class MplCanvasWidget(FigureCanvas):
         self.axes.clear()
         self.axes.set_ylabel("Temperature")
         self.axes.set_xlabel("Time (seconds)")
+        
+        # rudimentary auto-scaling
+        self.axes.set_ylim([np.amin(yArray)-5,np.amax(yArray)+5])
+        highestX = np.amax(x)
+        if highestX < 15:
+            self.axes.set_xlim([0,30])
+        else:
+            self.axes.set_xlim([highestX-15,highestX+15])
+
         self.axes.plot(x,yArray[0],'b',label = "Current") # plot first argument as blue solid line
         self.axes.plot(x,yArray[1],'r--', label = "Target") # plot second argument as red dashed line
         self.axes.legend()

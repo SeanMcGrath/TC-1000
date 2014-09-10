@@ -36,6 +36,7 @@ char readTemp[8];
 int mode = 0;                                   // Determines mode of operation: Menu, readout, etc.
 int menuState = 0;                              // Highlighted menu item
 int fahrenheit = 0;                             //0 for C, 1 for F
+int targetInitialized = 0;
 
 //PID variables
 int proportional;
@@ -253,12 +254,6 @@ void setup() {
   ROM = EEPROM.read(F_ADDR);
   if(ROM != 0) fahrenheit = 1;
   else fahrenheit = 0;
-  
-  Serial.print("30");
-  Serial.print(" ");
-  Serial.print(fahrenheit);
-  Serial.print(" ");
-  Serial.println(targetTemp);
   
 }
 
@@ -485,7 +480,13 @@ void loop(void) {
   //print packet of values to serial monitor for retrieval by GUI
   Serial.print(currTemp);
   Serial.print(" ");
-  if(scaleChangeFlag){
+  if(!targetInitialized) {
+    Serial.print(fahrenheit);
+    Serial.print(" ");
+    Serial.println(target);
+    targetInitialized = 1;
+  }
+  else if(scaleChangeFlag){
     Serial.println(fahrenheit);
   }
   else {

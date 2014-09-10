@@ -1,4 +1,3 @@
-==============================
 TC-1000 Software To-Do List
 ==============================
 
@@ -10,3 +9,4 @@ TC-1000 Software To-Do List
 - Better axis autoscaling
 - Figure out why changing temperature scale does not preserve target in C - probably rounding issue
 - Make graph autodetect scale
+- plot autoscroll on-off button / window combobox
