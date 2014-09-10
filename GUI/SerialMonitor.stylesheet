@@ -6,6 +6,10 @@ SerialMonitor {
     background-color: #3C3C3C
 }
 
+QWidget:disabled {
+    color: gray;
+}
+
 QLabel { 
     color: white;
     background-color: #1E1E1E;

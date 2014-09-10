@@ -303,10 +303,19 @@ class SerialMonitor(QtWidgets.QWidget):
     def initializeTempArray(self):
         self.tempArray = np.array([[time.time()-self.initTime, self.current, self.target]])
 
+    def setEnabled(self, enable):
+        self.fSelect.setEnabled(enable)
+        self.cSelect.setEnabled(enable)
+        self.portSelector.setEnabled(enable)
+        self.targetTemp.setEnabled(enable)
+
+
 class MplCanvasWidget(FigureCanvas):
     """
     Class to hold matplotlib Figures for display.
     """
+
+    autoscroll = 1
 
     def __init__(self):
         self.fig = Figure()
@@ -316,17 +325,32 @@ class MplCanvasWidget(FigureCanvas):
         self.show()
 
     def showPlot(self, x, yArray):
+        '''
+        Fill plot with data and draw it on the screen.
+
+        x
+            X data for plot (usually time)
+
+        yArray
+            array to hold plotted Y data. For TC-1000, this is current and target temp.
+
+        autoscroll
+            boolean value; true for autoscroll, false for autoscale.
+        '''
+
         self.axes.clear()
         self.axes.set_ylabel("Temperature")
         self.axes.set_xlabel("Time (seconds)")
-        
+
         # rudimentary auto-scaling
         self.axes.set_ylim([np.amin(yArray)-5,np.amax(yArray)+5])
-        highestX = np.amax(x)
-        if highestX < 15:
-            self.axes.set_xlim([0,30])
-        else:
-            self.axes.set_xlim([highestX-15,highestX+15])
+
+        if(self.autoscroll):
+            highestX = np.amax(x)
+            if highestX < 15:
+                self.axes.set_xlim([0,30])
+            else:
+                self.axes.set_xlim([highestX-15,highestX+15])
 
         self.axes.plot(x,yArray[0],'b',label = "Current") # plot first argument as blue solid line
         self.axes.plot(x,yArray[1],'r--', label = "Target") # plot second argument as red dashed line
@@ -362,18 +386,22 @@ class ThreadedClient:
         # load stylesheet
         self.ss = open(self.ssFile,"r")
 
+        # Set up subwidgets
+        self.monitor=SerialMonitor(self.inQueue, self.endWidget,self.ports)
+        self.monitor.setEnabled(False)
+        self.widgets = [self.monitor]
+
         # Start Serial Connection
         if self.serialPort:
             self.initSerial(self.serialPort,self.BAUD_RATE)
+            self.monitor.setEnabled(True)
 
-        # Set up the GUI part
-        self.monitor=SerialMonitor(self.inQueue, self.endWidget,self.ports)
-        self.widgets = [self.monitor]
 
         #initialize graphing utility
         self.plot = MplCanvasWidget()
         self.widgets.append(self.plot)
 
+        # Create GUI from widgets
         self.gui = MainWindow(self.widgets,self.endApplication,self.ss)
         self.gui.show()
 
@@ -430,6 +458,7 @@ class ThreadedClient:
 
         try:
             self.ser = serial.Serial(port, baud)
+            self.monitor.setEnabled(True)
             return True
         except (OSError,serial.SerialException):
             pass

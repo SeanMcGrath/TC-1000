@@ -8,5 +8,5 @@ TC-1000 Software To-Do List
 - Make GUI resize better
 - Better axis autoscaling
 - Figure out why changing temperature scale does not preserve target in C - probably rounding issue
-- Make graph autodetect scale
-- plot autoscroll on-off button / window combobox
+- create new widget class for plot control
+
