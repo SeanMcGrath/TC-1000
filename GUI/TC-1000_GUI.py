@@ -638,7 +638,7 @@ class ThreadedClient:
                     try:
                         self.ser.readline()
                     except serial.serialutil.SerialException:
-                        self.monitor.portLabel.setText("Error on " + self.ports[0])
+                        self.gui.statusBar().showMessage("Error on " + self.ports[0])
                         self.monitor.currTemp.display("")
                         self.ports = []
 
