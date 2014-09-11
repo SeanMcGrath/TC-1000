@@ -8,5 +8,6 @@ TC-1000 Software To-Do List
 - Make GUI resize better
 - Better axis autoscaling
 - Figure out why changing temperature scale does not preserve target in C - probably rounding issue
-- create new widget class for plot control
+- Add import of temp curves
+- graphically change plot window
 

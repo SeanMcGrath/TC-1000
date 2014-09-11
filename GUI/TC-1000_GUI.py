@@ -103,15 +103,16 @@ class MainWindow(QtWidgets.QMainWindow):
         # Initialize SerialMonitor
         self.monitor = widgets[0]
         self.plot = widgets[1]
+        self.plotControl = widgets[2]
 
         self.central = QtWidgets.QWidget(self)
-        self.layout = QtWidgets.QVBoxLayout(self)
-        self.layout.addWidget(self.plot)
-        self.layout.addWidget(self.monitor)
+        self.layout = QtWidgets.QGridLayout(self)
+        self.layout.addWidget(self.plot,0,0,1,2)
+        self.layout.addWidget(self.monitor,1,0)
+        self.layout.addWidget(self.plotControl,1,1)
         self.central.setLayout(self.layout)
         self.setCentralWidget(self.central)
 
-        # 
         self.initUI()
 
         self.endcommand = endcommand
@@ -197,9 +198,6 @@ class SerialMonitor(QtWidgets.QWidget):
         #take queue from constructor
         self.queue = queue
 
-        # Record time of program start
-        self.initTime = time.time()
-
         # initialization flags
         self.tempArrayInitialized = False
         self.currentInitialized = False
@@ -208,7 +206,6 @@ class SerialMonitor(QtWidgets.QWidget):
         self.portSelector = QtWidgets.QComboBox(self)
         for port in ports:
             self.portSelector.addItem(port)
-        # self.portSelector.setSizePolicy(QtWidgets.QSizePolicy.Fixed,QtWidgets.QSizePolicy.Fixed)
         self.portLabel = QtWidgets.QLabel(self)
         self.portLabel.setText("Serial Port")
         self.fSelect = QtWidgets.QRadioButton("Fahrenheit",self)
@@ -221,7 +218,6 @@ class SerialMonitor(QtWidgets.QWidget):
         self.currTemp = QtWidgets.QLCDNumber(6,self)
         self.targetTemp = QtWidgets.QSpinBox(self)
         self.targetTemp.setMaximum(1000)
-        # self.targetTemp.setSizePolicy(QtWidgets.QSizePolicy.Fixed,QtWidgets.QSizePolicy.Fixed)
 
         # Create widget layout
         self.grid = QtWidgets.QGridLayout()
@@ -301,6 +297,7 @@ class SerialMonitor(QtWidgets.QWidget):
         return self.tempArray
 
     def initializeTempArray(self):
+        self.initTime = time.time()
         self.tempArray = np.array([[time.time()-self.initTime, self.current, self.target]])
 
     def setEnabled(self, enable):
@@ -315,7 +312,8 @@ class MplCanvasWidget(FigureCanvas):
     Class to hold matplotlib Figures for display.
     """
 
-    autoscroll = 1
+    # Autoscroll x by default
+    autoscroll = True
 
     def __init__(self):
         self.fig = Figure()
@@ -357,6 +355,44 @@ class MplCanvasWidget(FigureCanvas):
         self.axes.legend()
         self.fig.canvas.draw()
 
+    def setAutoScroll(self, scroll):
+        self.autoscroll = scroll
+
+class PlotControlWidget(QtWidgets.QWidget):
+    """
+    Provides graphical control of matplotlib plot.
+    """
+
+    def __init__(self, *args):
+        """
+        Constructor.
+        """
+
+        QtWidgets.QWidget.__init__(self, *args)
+
+        self.controlLabel = QtWidgets.QLabel("Plot Control",self)
+        self.resetButton = QtWidgets.QPushButton("Reset Plot", self)
+        self.scrollCheck = QtWidgets.QCheckBox("autoscroll",self)
+        self.scrollCheck.setChecked(True)
+        self.widgets = [self.controlLabel,self.resetButton,self.scrollCheck]
+
+        self.grid = QtWidgets.QGridLayout(self)
+
+        self.grid.addWidget(self.controlLabel,0,0,1,2)
+        self.grid.addWidget(self.resetButton,1,0)
+        self.grid.addWidget(self.scrollCheck,1,1)
+
+        self.setLayout(self.grid)
+        self.show()
+        print("control")
+
+    def setEnabled(self, enabled):
+        self.controlLabel.setEnabled(True)
+        
+        for widget in self.widgets:
+            if not isinstance(widget,QtWidgets.QLabel):
+                widget.setEnabled(enabled)
+
 
 class ThreadedClient:
     """
@@ -388,18 +424,22 @@ class ThreadedClient:
 
         # Set up subwidgets
         self.monitor=SerialMonitor(self.inQueue, self.endWidget,self.ports)
-        self.monitor.setEnabled(False)
         self.widgets = [self.monitor]
-
-        # Start Serial Connection
-        if self.serialPort:
-            self.initSerial(self.serialPort,self.BAUD_RATE)
-            self.monitor.setEnabled(True)
-
 
         #initialize graphing utility
         self.plot = MplCanvasWidget()
         self.widgets.append(self.plot)
+
+        # Intialize plot controls
+        self.plotControl = PlotControlWidget()
+        self.widgets.append(self.plotControl)
+
+        # disable controls during startup
+        self.controlsEnabled(False)
+
+        # Start Serial Connection
+        if self.serialPort:
+            self.initSerial(self.serialPort,self.BAUD_RATE)
 
         # Create GUI from widgets
         self.gui = MainWindow(self.widgets,self.endApplication,self.ss)
@@ -412,6 +452,18 @@ class ThreadedClient:
         # Start the timer -- this replaces the initial call to periodicCall
         self.timer.start(50)
 
+        self.connectSignals()
+
+        # Set up the thread to do asynchronous I/O
+        self.running = 1
+        self.thread1 = threading.Thread(target=self.workerThread1)
+        self.thread1.start()
+
+    def connectSignals(self):
+        """
+        Connect signals emitted by subwidgets to correct slots.
+        """
+
         # Connect spinbox to target temp on Arduino
         self.monitor.targetTemp.valueChanged.connect(self.writeData)
 
@@ -421,11 +473,11 @@ class ThreadedClient:
         # connect scale selector
         self.monitor.fSelect.toggled.connect(self.scaleChange)
 
-        # Set up the thread to do asynchronous I/O
-        self.running = 1
-        self.thread1 = threading.Thread(target=self.workerThread1)
-        self.thread1.start()
+        # connect reset button to plot
+        self.plotControl.resetButton.clicked.connect(self.monitor.initializeTempArray)
 
+        # Connect autoscroll checkbox
+        self.plotControl.scrollCheck.stateChanged.connect(self.plot.setAutoScroll)
 
 
     def periodicCall(self):
@@ -458,7 +510,7 @@ class ThreadedClient:
 
         try:
             self.ser = serial.Serial(port, baud)
-            self.monitor.setEnabled(True)
+            self.controlsEnabled(True)
             return True
         except (OSError,serial.SerialException):
             pass
@@ -524,6 +576,16 @@ class ThreadedClient:
         print("Closing application...")
         self.monitor.close()
 
+    def controlsEnabled(self, enable):
+        """
+        Use to enable/disable controls as needed.
+
+        enable
+            boolean value: true for enabled, false for disabled
+        """
+        for widget in self.widgets:
+                widget.setEnabled(enable)
+
 
     def changePort(self, portIndex):
         """
@@ -551,11 +613,13 @@ class ThreadedClient:
         while self.running:
             # If no port is available, continuously check for one
             while (not self.ports) and self.running:
+                self.controlsEnabled(False)
                 self.gui.statusBar().showMessage("No Serial Ports Detected")
                 self.monitor.portSelector.clear()
                 self.ports = serial_ports()
                 # if found
                 if(self.ports):
+                    self.controlsEnabled(True)
                     self.gui.statusBar().showMessage("Connecting to " + self.ports[0] + "...")
                     self.monitor.portSelector.addItem(self.ports[0])
                     self.initSerial(self.ports[0],self.BAUD_RATE)

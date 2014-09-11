@@ -21,8 +21,15 @@ QLabel {
 QRadioButton {
 	color: white;
 	background-color: #1E1E1E;
-    border-radius: 5px;
-    padding: 8px;
+  border-radius: 5px;
+  padding: 8px;
+}
+
+QCheckBox {
+  color: white;
+  background-color: #1E1E1E;
+  border-radius: 5px;
+  padding: 8px;
 }
 
 QSpinBox {
