@@ -294,9 +294,6 @@ class SerialMonitor(QtWidgets.QWidget):
                 pass
 
     def getTempArray(self):
-        """
-        returns array of temperatures and times.
-        """
         return self.tempArray
 
     def initializeTempArray(self):
@@ -391,7 +388,7 @@ class PlotControlWidget(QtWidgets.QWidget):
 
     def setEnabled(self, enabled):
         self.controlLabel.setEnabled(True)
-
+        
         for widget in self.widgets:
             if not isinstance(widget,QtWidgets.QLabel):
                 widget.setEnabled(enabled)
