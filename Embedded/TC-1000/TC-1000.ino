@@ -483,7 +483,7 @@ void loop(void) {
   if(!targetInitialized) {
     Serial.print(fahrenheit);
     Serial.print(" ");
-    Serial.println(target);
+    Serial.println(targetTemp);
     targetInitialized = 1;
   }
   else if(scaleChangeFlag){
